@@ -21,7 +21,7 @@ impl AppConfig {
     fn load_from_env() -> AppConfig {
         dotenv().ok();
 
-        let cors_origins = env::var("CORS_ORIGIN")
+        let cors_origins = env::var("CORS_ORIGINS")
             .unwrap_or_else(|_| "http://localhost:3000".to_string())
             .split(',')
             .map(|s| s.trim().to_string())
