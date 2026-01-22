@@ -1,16 +1,41 @@
 [package]
-name = "api"
+name = "tambahkan-ini-ke-database-my-api"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 anyhow = "1.0.100"
 axum = "0.8.8"
+axum-extra = { version = "0.10.0", features = ["cookie", "typed-header"] }
 dotenvy = "0.15.7"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres"] }
+sqlx = { version = "0.8.6", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+] }
 tokio = { version = "1.49.0", features = ["full"] }
-tower-http = { version = "0.6.8", features = ["fs"] }
+tower-http = { version = "0.6.8", features = [
+    "fs",
+    "cors",
+    "compression-full",
+    "set-header",
+    "limit",
+    "trace",
+] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+argon2 = "0.5.3"
+jsonwebtoken = "9.3.0"
+chrono = { version = "0.4.39", features = ["serde"] }
+uuid = { version = "1.12.1", features = ["serde", "v4"] }
+tower_governor = "0.6.0"
+moka = { version = "0.12", features = ["future"] }
+
+[dev-dependencies]
+tower = { version = "0.5.2", features = ["util"] }
+http-body-util = "0.1.2"
+mime = "0.3.17"
+reqwest = { version = "0.12", features = ["json"] }
