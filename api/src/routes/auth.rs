@@ -16,6 +16,20 @@ async fn register(
     State(state): State<AppState>,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    if payload.username.len() < 3 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Username must be at least 3 characters long" })),
+        ));
+    }
+
+    if payload.password.len() < 8 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Password must be at least 8 characters long" })),
+        ));
+    }
+
     let password_hash = AuthService::hash_password(&payload.password).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,

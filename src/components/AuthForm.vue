@@ -14,6 +14,19 @@ async function handleSubmit() {
   error.value = ''
   loading.value = true
 
+  if (!isLogin.value) {
+    if (username.value.length < 3) {
+      error.value = 'Username must be at least 3 characters long'
+      loading.value = false
+      return
+    }
+    if (password.value.length < 8) {
+      error.value = 'Password must be at least 8 characters long'
+      loading.value = false
+      return
+    }
+  }
+
   const endpoint = isLogin.value ? `${API_BASE_URL}/auth/login` : `${API_BASE_URL}/auth/register`
 
   try {
