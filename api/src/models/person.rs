@@ -14,6 +14,7 @@ pub enum PersonCategory {
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Person {
     pub id: Uuid,
+    pub person_id: Uuid,
     pub user_id: Uuid,
     pub name: String,
     pub category: PersonCategory,
@@ -31,6 +32,14 @@ pub struct CreatePersonRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdatePersonRequest {
     pub name: Option<String>,
+    pub category: Option<PersonCategory>,
+    pub description: Option<String>,
+}
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct PersonSearchResult {
+    pub person_id: Uuid,
+    pub name: String,
+    pub tracking_id: Option<Uuid>,
     pub category: Option<PersonCategory>,
     pub description: Option<String>,
 }

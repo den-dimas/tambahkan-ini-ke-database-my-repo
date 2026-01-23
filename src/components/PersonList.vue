@@ -4,7 +4,8 @@ import { ref, onMounted, watch } from 'vue'
 import { API_BASE_URL } from '../config/api'
 
 interface Person {
-  id: number;
+  id: string;
+  person_id: string;
   name: string;
   category: string;
   description: string;
