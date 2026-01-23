@@ -9,7 +9,10 @@ use serde::Deserialize;
 
 use crate::{
     AppState,
-    models::person::{CreatePersonRequest, Person, PersonCategory},
+    models::{
+        person::{CreatePersonRequest, Person, PersonCategory},
+        response::ApiResponse,
+    },
     routes::auth_middleware::AuthenticatedUser,
 };
 
@@ -33,7 +36,7 @@ async fn create_person(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
     Json(payload): Json<CreatePersonRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<serde_json::Value>>)> {
     let person = sqlx::query_as::<_, Person>(
         "INSERT INTO people (user_id, name, category, description) VALUES ($1, $2, $3, $4) RETURNING id, user_id, name, category, description, created_at",
     )
@@ -43,16 +46,21 @@ async fn create_person(
     .bind(&payload.description)
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::error(e.to_string())),
+        )
+    })?;
 
-    Ok((StatusCode::CREATED, Json(person)))
+    Ok((StatusCode::CREATED, Json(ApiResponse::success(person))))
 }
 
 async fn list_people(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
     Query(query): Query<ListPeopleQuery>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<Vec<Person>>>)> {
     let people = if let Some(category) = query.category {
         sqlx::query_as::<_, Person>(
             "SELECT id, user_id, name, category, description, created_at FROM people WHERE user_id = $1 AND category = $2 ORDER BY created_at DESC",
@@ -69,21 +77,26 @@ async fn list_people(
         .fetch_all(&state.pool)
         .await
     }
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::error(e.to_string())),
+        )
+    })?;
 
-    Ok(Json(people))
+    Ok(Json(ApiResponse::success(people)))
 }
 
 async fn search_people(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
     Query(query): Query<SearchQuery>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<serde_json::Value>>)> {
     let cache_key = format!("search:{}:{}", user_id, query.q);
 
     // Check cache
     if let Some(cached_result) = state.cache.get(&cache_key).await {
-        return Ok(Json(cached_result));
+        return Ok(Json(ApiResponse::success(cached_result)));
     }
 
     // Predictive search using ILIKE for case-insensitive prefix matching
@@ -94,17 +107,22 @@ async fn search_people(
     .bind(format!("{}%", query.q))
     .fetch_all(&state.pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse::error(e.to_string())),
+        )
+    })?;
 
     let result_json = serde_json::to_value(&people).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": e.to_string() })),
+            Json(ApiResponse::error(e.to_string())),
         )
     })?;
 
     // Update cache
     state.cache.insert(cache_key, result_json.clone()).await;
 
-    Ok(Json(result_json))
+    Ok(Json(ApiResponse::success(result_json)))
 }

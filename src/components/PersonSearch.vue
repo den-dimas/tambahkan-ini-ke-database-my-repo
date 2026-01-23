@@ -29,8 +29,8 @@ async function handleSearch() {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     const data = await response.json()
-    if (response.ok) {
-      results.value = data
+    if (data.success) {
+      results.value = data.data
     }
   } catch (err) {
     console.error('Search failed:', err)

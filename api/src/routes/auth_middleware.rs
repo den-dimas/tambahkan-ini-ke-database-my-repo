@@ -1,4 +1,5 @@
 use axum::{
+    Json,
     extract::{FromRef, FromRequestParts},
     http::{StatusCode, request::Parts},
 };
@@ -9,7 +10,10 @@ use axum_extra::{
 use jsonwebtoken::{DecodingKey, Validation, decode};
 use uuid::Uuid;
 
-use crate::{config::app::AppConfig, models::user::Claims};
+use crate::{
+    config::app::AppConfig,
+    models::{response::ApiResponse, user::Claims},
+};
 
 pub struct AuthenticatedUser(pub Uuid);
 
@@ -18,13 +22,18 @@ where
     S: Send + Sync,
     &'static AppConfig: FromRef<S>,
 {
-    type Rejection = (StatusCode, &'static str);
+    type Rejection = (StatusCode, Json<ApiResponse<serde_json::Value>>);
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let TypedHeader(Authorization(bearer)) =
             TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state)
                 .await
-                .map_err(|_| (StatusCode::UNAUTHORIZED, "Missing credentials"))?;
+                .map_err(|_| {
+                    (
+                        StatusCode::UNAUTHORIZED,
+                        Json(ApiResponse::error("Missing credentials")),
+                    )
+                })?;
 
         let config = <&'static AppConfig>::from_ref(state);
 
@@ -33,7 +42,12 @@ where
             &DecodingKey::from_secret(config.jwt_secret.as_bytes()),
             &Validation::default(),
         )
-        .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid token"))?;
+        .map_err(|_| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(ApiResponse::error("Invalid token")),
+            )
+        })?;
 
         Ok(AuthenticatedUser(token_data.claims.sub))
     }

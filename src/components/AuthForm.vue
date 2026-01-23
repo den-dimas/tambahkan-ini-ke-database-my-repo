@@ -41,11 +41,11 @@ async function handleSubmit() {
 
     const data = await response.json()
 
-    if (!response.ok) {
+    if (!data.success) {
       throw new Error(data.error || 'Authentication failed')
     }
 
-    emit('auth-success', data)
+    emit('auth-success', data.data)
   } catch (err: any) {
     error.value = err.message
   } finally {

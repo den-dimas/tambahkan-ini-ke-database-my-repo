@@ -31,8 +31,8 @@ async function fetchPeople() {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     const data = await response.json()
-    if (response.ok) {
-      people.value = data
+    if (data.success) {
+      people.value = data.data
     }
   } catch (err) {
     console.error('Failed to fetch people:', err)

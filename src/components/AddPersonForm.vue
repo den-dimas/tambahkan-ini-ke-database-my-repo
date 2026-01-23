@@ -36,13 +36,13 @@ async function handleSubmit() {
 
     const data = await response.json()
 
-    if (!response.ok) {
+    if (!data.success) {
       throw new Error(data.error || 'Failed to add person')
     }
 
     name.value = ''
     description.value = ''
-    emit('person-added', data)
+    emit('person-added', data.data)
   } catch (err: any) {
     error.value = err.message
   } finally {
