@@ -1,7 +1,7 @@
 use axum::Router;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::env;
-use tambahkan_ini_ke_database_my_api::{AppState, app, config::app::AppConfig};
+use tambahkan_ini_ke_database_my_api::{app, config::app::AppConfig, state::AppState};
 
 pub struct TestContext {
     pub state: AppState,

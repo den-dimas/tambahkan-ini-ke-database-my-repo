@@ -53,6 +53,7 @@ async fn test_people_crud_and_search() {
                     serde_json::to_vec(&json!({
                         "name": "John Doe",
                         "category": "Bini",
+                        "gender": "Male",
                         "description": "A test person"
                     }))
                     .unwrap(),
@@ -147,6 +148,7 @@ async fn test_shared_people_sharing() {
                     serde_json::to_vec(&json!({
                         "name": shared_name,
                         "category": "Kisah",
+                        "gender": "Female",
                         "description": "User 1's Kisah"
                     }))
                     .unwrap(),
@@ -171,6 +173,7 @@ async fn test_shared_people_sharing() {
                     serde_json::to_vec(&json!({
                         "name": shared_name,
                         "category": "Bini",
+                        "gender": "Female",
                         "description": "User 2's Bini"
                     }))
                     .unwrap(),

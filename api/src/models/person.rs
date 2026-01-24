@@ -29,6 +29,7 @@ pub struct Person {
     pub description: Option<String>, // User's private description
     pub global_description: Option<String>,
     pub age: Option<i32>,
+    pub gender: Option<String>,
     pub image_url: Option<String>,
     pub creator_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
@@ -50,6 +51,7 @@ pub struct CreatePersonRequest {
     pub description: Option<String>, // Personal description
     pub global_description: Option<String>,
     pub age: Option<i32>,
+    pub gender: Option<String>,
     pub image_url: Option<String>,
 }
 
@@ -76,6 +78,7 @@ pub struct PersonSearchResult {
     pub description: Option<String>,
     pub global_description: Option<String>,
     pub age: Option<i32>,
+    pub gender: Option<String>,
     pub image_url: Option<String>,
 }
 
@@ -102,4 +105,17 @@ pub struct UploadUrlResponse {
     pub upload_url: String,
     pub public_url: String,
     pub key: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct CategoryStat {
+    pub category: PersonCategory,
+    pub count: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StatsResponse {
+    pub total_people: i64,
+    pub category_counts: Vec<CategoryStat>,
+    pub top_tracked: Vec<PersonSearchResult>, // Reusing this for simplicity
 }

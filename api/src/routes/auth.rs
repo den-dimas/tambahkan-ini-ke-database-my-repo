@@ -1,12 +1,10 @@
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::post};
 
 use crate::{
-    AppState,
-    models::{
-        response::ApiResponse,
-        user::{AuthResponse, LoginRequest, RegisterRequest, User},
-    },
+    models::user::{AuthResponse, LoginRequest, RegisterRequest, User},
     services::auth_service::AuthService,
+    state::AppState,
+    utils::api_response::ApiResponse,
 };
 
 pub fn routes() -> Router<AppState> {

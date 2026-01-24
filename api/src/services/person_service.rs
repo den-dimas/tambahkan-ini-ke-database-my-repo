@@ -1,9 +1,9 @@
-use crate::models::{
-    person::{
-        CreatePersonRequest, EditStatus, Person, PersonCategory, PersonEdit, PersonSearchResult,
-        ProposeEditRequest,
+use crate::{
+    models::person::{
+        CategoryStat, CreatePersonRequest, EditStatus, Person, PersonCategory, PersonEdit,
+        PersonSearchResult, ProposeEditRequest, StatsResponse,
     },
-    response::ApiResponse,
+    utils::api_response::ApiResponse,
 };
 use axum::Json;
 use axum::http::StatusCode;
@@ -47,15 +47,16 @@ impl PersonService {
                 // First time registration: Add global info directly
                 sqlx::query!(
                     r#"
-                    INSERT INTO person_bases (name, global_description, age, image_url, creator_id)
-                    VALUES ($1, $2, $3, $4, $5)
+                    INSERT INTO person_bases (name, global_description, age, image_url, creator_id, gender)
+                    VALUES ($1, $2, $3, $4, $5, $6)
                     RETURNING id
                     "#,
                     name,
                     payload.global_description,
                     payload.age,
                     payload.image_url,
-                    user_id
+                    user_id,
+                    payload.gender
                 )
                 .fetch_one(&mut *tx)
                 .await
@@ -79,7 +80,7 @@ impl PersonService {
             )
             SELECT
                 i.id, i.person_id, i.user_id, pb.name, i.category, i.description,
-                pb.global_description, pb.age, pb.image_url, pb.creator_id, i.created_at
+                pb.global_description, pb.age, pb.gender, pb.image_url, pb.creator_id, i.created_at
             FROM inserted i
             JOIN person_bases pb ON i.person_id = pb.id
             "#,
@@ -118,7 +119,7 @@ impl PersonService {
         let sql = r#"
             SELECT
                 pt.id, pt.person_id, pt.user_id, pb.name, pt.category, pt.description,
-                pb.global_description, pb.age, pb.image_url, pb.creator_id, pt.created_at
+                pb.global_description, pb.age, pb.gender, pb.image_url, pb.creator_id, pt.created_at
             FROM person_trackings pt
             JOIN person_bases pb ON pt.person_id = pb.id
             WHERE pt.user_id = $1
@@ -158,7 +159,7 @@ impl PersonService {
             r#"
             SELECT
                 pt.id, pb.id as person_id, pt.user_id, pb.name, pt.category, pt.description,
-                pb.global_description, pb.age, pb.image_url, pb.creator_id, pt.created_at
+                pb.global_description, pb.age, pb.gender, pb.image_url, pb.creator_id, pt.created_at
             FROM person_bases pb
             LEFT JOIN person_trackings pt ON pb.id = pt.person_id AND pt.user_id = $1
             WHERE pb.id = $2
@@ -343,10 +344,13 @@ impl PersonService {
     pub async fn search_people(
         pool: &PgPool,
         cache: &Cache<String, serde_json::Value>,
-        user_id: Uuid,
+        user_id: Option<Uuid>,
         q: String,
     ) -> Result<serde_json::Value, (StatusCode, Json<ApiResponse<serde_json::Value>>)> {
-        let cache_key = format!("search:{}:{}", user_id, q);
+        let user_key = user_id
+            .map(|u| u.to_string())
+            .unwrap_or_else(|| "guest".to_string());
+        let cache_key = format!("search:{}:{}", user_key, q);
 
         // Check cache
         if let Some(cached_result) = cache.get(&cache_key).await {
@@ -364,6 +368,7 @@ impl PersonService {
                 pt.description,
                 pb.global_description,
                 pb.age,
+                pb.gender,
                 pb.image_url
             FROM person_bases pb
             LEFT JOIN person_trackings pt ON pb.id = pt.person_id AND pt.user_id = $1
@@ -394,5 +399,121 @@ impl PersonService {
         cache.insert(cache_key, result_json.clone()).await;
 
         Ok(result_json)
+    }
+
+    pub async fn list_feed(
+        pool: &PgPool,
+        user_id: Option<Uuid>,
+    ) -> Result<Vec<PersonSearchResult>, (StatusCode, Json<ApiResponse<Vec<PersonSearchResult>>>)>
+    {
+        // Return random people
+        // If user_id is provided, check if they are tracking
+        let people = sqlx::query_as::<_, PersonSearchResult>(
+            r#"
+            SELECT
+                pb.id as person_id,
+                pb.name,
+                pt.id as tracking_id,
+                pt.category,
+                pt.description,
+                pb.global_description,
+                pb.age,
+                pb.gender,
+                pb.image_url
+            FROM person_bases pb
+            LEFT JOIN person_trackings pt ON pb.id = pt.person_id AND pt.user_id = $1
+            ORDER BY RANDOM()
+            LIMIT 20
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::error(e.to_string())),
+            )
+        })?;
+
+        Ok(people)
+    }
+
+    pub async fn get_stats(
+        pool: &PgPool,
+        user_id: Option<Uuid>,
+    ) -> Result<StatsResponse, (StatusCode, Json<ApiResponse<StatsResponse>>)> {
+        // 1. Total people count
+        let total_people = sqlx::query_scalar!("SELECT count(*) FROM person_bases")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiResponse::error(e.to_string())),
+                )
+            })?
+            .unwrap_or(0);
+
+        // 2. Category counts (global or specific? Let's do global usage of categories)
+        let category_counts = sqlx::query_as::<_, CategoryStat>(
+            r#"
+            SELECT category, count(*) as count
+            FROM person_trackings
+            GROUP BY category
+            ORDER BY count DESC
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::error(e.to_string())),
+            )
+        })?;
+
+        // 3. Top tracked people
+        // We want to return PersonSearchResult format
+        let top_tracked = sqlx::query_as::<_, PersonSearchResult>(
+            r#"
+            WITH top AS (
+                SELECT person_id, count(*) as track_count
+                FROM person_trackings
+                GROUP BY person_id
+                ORDER BY track_count DESC
+                LIMIT 5
+            )
+            SELECT
+                pb.id as person_id,
+                pb.name,
+                pt.id as tracking_id,
+                pt.category,
+                pt.description,
+                pb.global_description,
+                pb.age,
+                pb.gender,
+                pb.image_url
+            FROM top
+            JOIN person_bases pb ON top.person_id = pb.id
+            LEFT JOIN person_trackings pt ON pb.id = pt.person_id AND pt.user_id = $1
+            ORDER BY top.track_count DESC
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::error(e.to_string())),
+            )
+        })?;
+
+        Ok(StatsResponse {
+            total_people,
+            category_counts,
+            top_tracked,
+        })
     }
 }

@@ -8,16 +8,14 @@ use axum::{
 use serde::Deserialize;
 
 use crate::{
-    AppState,
-    models::{
-        person::{
-            CreatePersonRequest, GetUploadUrlRequest, Person, PersonCategory, PersonEdit,
-            ProposeEditRequest, UploadUrlResponse,
-        },
-        response::ApiResponse,
+    middleware::auth::{AuthenticatedUser, OptionalUser},
+    models::person::{
+        CreatePersonRequest, GetUploadUrlRequest, Person, PersonCategory, PersonEdit,
+        PersonSearchResult, ProposeEditRequest, StatsResponse, UploadUrlResponse,
     },
-    routes::auth_middleware::AuthenticatedUser,
     services::person_service::PersonService,
+    state::AppState,
+    utils::api_response::ApiResponse,
 };
 use aws_sdk_s3::presigning::PresigningConfig;
 use std::time::Duration;
@@ -26,6 +24,8 @@ use uuid::Uuid;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", post(create_person).get(list_people))
+        .route("/feed", get(list_feed))
+        .route("/stats", get(get_stats))
         .route("/search", get(search_people))
         .route("/{id}", get(get_person))
         .route("/{id}/edit", post(propose_edit))
@@ -60,6 +60,23 @@ async fn list_people(
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<Vec<Person>>>)> {
     let people = PersonService::list_people(&state.pool, user_id, query.category).await?;
     Ok(Json(ApiResponse::success(people)))
+}
+
+async fn list_feed(
+    State(state): State<AppState>,
+    OptionalUser(user_id): OptionalUser,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<Vec<PersonSearchResult>>>)> {
+    // feed is public, but we want to know if user tracks them
+    let people = PersonService::list_feed(&state.pool, user_id).await?;
+    Ok(Json(ApiResponse::success(people)))
+}
+
+async fn get_stats(
+    State(state): State<AppState>,
+    OptionalUser(user_id): OptionalUser,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<StatsResponse>>)> {
+    let stats = PersonService::get_stats(&state.pool, user_id).await?;
+    Ok(Json(ApiResponse::success(stats)))
 }
 
 async fn get_person(
@@ -102,7 +119,7 @@ async fn vote_on_edit(
 
 async fn search_people(
     State(state): State<AppState>,
-    AuthenticatedUser(user_id): AuthenticatedUser,
+    OptionalUser(user_id): OptionalUser,
     Query(query): Query<SearchQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<serde_json::Value>>)> {
     let result_json =

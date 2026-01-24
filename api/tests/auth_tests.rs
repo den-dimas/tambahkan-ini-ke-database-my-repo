@@ -40,8 +40,8 @@ async fn test_register_and_login() {
 
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let body: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(body["username"], username);
-    assert!(body["token"].is_string());
+    assert_eq!(body["data"]["username"], username);
+    assert!(body["data"]["token"].is_string());
 
     // 2. Test Login
     let response = app
@@ -66,8 +66,8 @@ async fn test_register_and_login() {
 
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let body: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(body["username"], username);
-    assert!(body["token"].is_string());
+    assert_eq!(body["data"]["username"], username);
+    assert!(body["data"]["token"].is_string());
 
     // Cleanup
     sqlx::query("DELETE FROM users WHERE username = $1")

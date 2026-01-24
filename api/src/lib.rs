@@ -1,12 +1,11 @@
 use sqlx::PgPool;
 use std::net::SocketAddr;
 
-use axum::extract::{ConnectInfo, DefaultBodyLimit};
+use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, header};
 use moka::future::Cache;
-use std::sync::Arc;
 use tokio::net::TcpListener;
-use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
+use tower_governor::GovernorLayer;
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
@@ -16,32 +15,16 @@ use tower_http::{
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::config::app::AppConfig;
+use crate::state::AppState;
 
 pub mod config;
 pub mod database;
+pub mod middleware;
 pub mod models;
 pub mod routes;
 pub mod services;
-
-#[derive(Clone)]
-pub struct AppState {
-    pub pool: PgPool,
-    pub config: &'static AppConfig,
-    pub cache: Cache<String, serde_json::Value>,
-    pub s3_client: aws_sdk_s3::Client,
-}
-
-impl axum::extract::FromRef<AppState> for PgPool {
-    fn from_ref(state: &AppState) -> Self {
-        state.pool.clone()
-    }
-}
-
-impl axum::extract::FromRef<AppState> for &'static AppConfig {
-    fn from_ref(state: &AppState) -> Self {
-        state.config
-    }
-}
+pub mod state;
+pub mod utils;
 
 pub async fn serve() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
@@ -118,38 +101,7 @@ pub fn app(state: AppState) -> axum::Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    use axum::http::Request;
-    use tower_governor::key_extractor::KeyExtractor;
-
-    #[derive(Clone, Copy)]
-    struct PeerAddrExtractor;
-
-    impl KeyExtractor for PeerAddrExtractor {
-        type Key = std::net::IpAddr;
-
-        fn extract<B>(
-            &self,
-            req: &Request<B>,
-        ) -> Result<Self::Key, tower_governor::errors::GovernorError> {
-            req.extensions()
-                .get::<axum::extract::ConnectInfo<SocketAddr>>()
-                .map(|ConnectInfo(addr)| addr.ip())
-                .or_else(|| {
-                    // Fallback for tests or when ConnectInfo is missing
-                    Some(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)))
-                })
-                .ok_or(tower_governor::errors::GovernorError::UnableToExtractKey)
-        }
-    }
-
-    let governor_config = Arc::new(
-        GovernorConfigBuilder::default()
-            .per_second(2)
-            .burst_size(5)
-            .key_extractor(PeerAddrExtractor)
-            .finish()
-            .unwrap(),
-    );
+    let governor_config = crate::middleware::rate_limit::create_governor_config();
 
     axum::Router::new()
         .nest(
