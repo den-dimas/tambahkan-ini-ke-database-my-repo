@@ -104,6 +104,7 @@ pub fn app(state: AppState) -> axum::Router {
     let governor_config = crate::middleware::rate_limit::create_governor_config();
 
     axum::Router::new()
+        .route("/health", axum::routing::get(|| async { "OK" }))
         .nest(
             "/api/v1",
             axum::Router::new()

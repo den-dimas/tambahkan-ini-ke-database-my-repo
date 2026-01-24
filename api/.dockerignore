@@ -1,0 +1,28 @@
+# Build artifacts
+target/
+dist/
+
+# Test results
+tests/
+
+# Environment files (will be configured via docker-compose)
+.env
+
+# Source control
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation (except README)
+*.md
+!README.md
+
+# Logs
+*.log

@@ -1,0 +1,114 @@
+services:
+  # Frontend Service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: app-frontend
+    ports:
+      - '12000:12000'
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--no-verbose',
+          '--tries=1',
+          '--spider',
+          'http://localhost:12000/health',
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # Backend Service
+  backend:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.backend
+    container_name: app-backend
+    ports:
+      - '16000:16000'
+    environment:
+      # Database Configuration
+      DB_URL: ${DB_URL:-postgresql://postgres:postgres@postgres:5432/mydb}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/mydb}
+
+      # Server Configuration
+      PORT: '16000'
+
+      # JWT Configuration
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-this-in-production}
+
+      # CORS Configuration
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:12000}
+
+      # Cloudflare R2 / S3 Configuration
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-your-r2-access-key}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-your-r2-secret-key}
+      R2_ENDPOINT: ${R2_ENDPOINT:-https://your-account-id.r2.cloudflarestorage.com}
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME:-your-bucket-name}
+      R2_PUBLIC_DOMAIN: ${R2_PUBLIC_DOMAIN:-https://your-public-domain.com}
+
+      # Logging
+      RUST_LOG: ${RUST_LOG:-tambahkan_ini_ke_database_my_api=info,tower_http=info}
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:16000/health']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+    # Run migrations on startup
+    command: >
+      sh -c "
+        echo 'Running database migrations...' &&
+        sqlx migrate run --source /app/migrations &&
+        echo 'Starting application...' &&
+        app
+      "
+
+  # PostgreSQL Database (for reference - you mentioned it's already deployed)
+  # If the PostgreSQL container is in a different compose file or external,
+  # comment out this service and configure the external network below
+  postgres:
+    image: postgres:16-alpine
+    container_name: app-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-mydb}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
+    # If connecting to an existing PostgreSQL network, use this instead:
+    # external: true
+    # name: your-existing-postgres-network-name
+
+volumes:
+  postgres-data:
+    # If using external PostgreSQL, you can remove this volume

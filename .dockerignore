@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+api/dist/
+
+# Test files and reports
+test-results/
+playwright-report/
+coverage/
+*.test.ts
+*.spec.ts
+
+# Development files
+.git/
+.gitignore
+.vscode/
+.editorconfig
+*.md
+!README.md
+
+# E2E tests
+e2e/
+
+# Environment files (will be configured via docker-compose)
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backend API (not needed for frontend build)
+api/
+!api/dist

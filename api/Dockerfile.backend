@@ -1,0 +1,79 @@
+# Stage 1: Prepare dependencies with cargo-chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.85 AS chef
+WORKDIR /app
+
+# Stage 2: Plan dependencies
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+# Stage 3: Build dependencies
+FROM chef AS builder
+
+# Install required dependencies for sqlx and PostgreSQL
+RUN apt-get update && \
+    apt-get install -y pkg-config libssl-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy the recipe from planner
+COPY --from=planner /app/recipe.json recipe.json
+
+# Build dependencies - this layer is cached as long as dependencies don't change
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN cargo build --release
+
+# Install sqlx-cli for migrations
+RUN cargo install sqlx-cli --no-default-features --features postgres,rustls
+
+# Stage 4: Production runtime
+FROM debian:bookworm-slim AS runtime
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the compiled binary from builder
+COPY --from=builder /app/target/release/tambahkan-ini-ke-database-my-api /usr/local/bin/app
+
+# Copy sqlx-cli for migrations
+COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/sqlx
+
+# Copy migrations
+COPY --from=builder /app/migrations /app/migrations
+
+# Copy .env.example as reference (actual .env will be provided by docker-compose)
+COPY --from=builder /app/.env.example /app/.env.example
+
+# Create a non-root user
+RUN useradd -m -u 1001 appuser && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port 16000
+EXPOSE 16000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:16000/api/v1/health || exit 1
+
+# Install curl for health check (need to do this before switching user)
+USER root
+RUN apt-get update && \
+    apt-get install -y curl && \
+    rm -rf /var/lib/apt/lists/*
+USER appuser
+
+# Start the application
+CMD ["app"]
