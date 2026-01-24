@@ -11,12 +11,13 @@ use crate::{
     AppState,
     models::{
         person::{
-            CreatePersonRequest, GetUploadUrlRequest, Person, PersonCategory, PersonSearchResult,
-            UploadUrlResponse,
+            CreatePersonRequest, GetUploadUrlRequest, Person, PersonCategory, PersonEdit,
+            ProposeEditRequest, UploadUrlResponse,
         },
         response::ApiResponse,
     },
     routes::auth_middleware::AuthenticatedUser,
+    services::person_service::PersonService,
 };
 use aws_sdk_s3::presigning::PresigningConfig;
 use std::time::Duration;
@@ -26,6 +27,10 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", post(create_person).get(list_people))
         .route("/search", get(search_people))
+        .route("/{id}", get(get_person))
+        .route("/{id}/edit", post(propose_edit))
+        .route("/edits", get(list_edits))
+        .route("/edits/{id}/vote", post(vote_on_edit))
         .route("/upload-url", post(get_upload_url))
 }
 
@@ -44,76 +49,7 @@ async fn create_person(
     AuthenticatedUser(user_id): AuthenticatedUser,
     Json(payload): Json<CreatePersonRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<Person>>)> {
-    let mut tx = state.pool.begin().await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::error(e.to_string())),
-        )
-    })?;
-
-    // 1. Get or create person_base
-    let name = payload.name.trim();
-    let person_base_id = match sqlx::query!("SELECT id FROM person_bases WHERE name = $1", name)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::error(e.to_string())),
-            )
-        })? {
-        Some(row) => row.id,
-        None => {
-            sqlx::query!(
-                "INSERT INTO person_bases (name) VALUES ($1) RETURNING id",
-                name
-            )
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiResponse::error(e.to_string())),
-                )
-            })?
-            .id
-        }
-    };
-
-    // 2. Create person_tracking
-    let person = sqlx::query_as::<_, Person>(
-        r#"
-        WITH inserted AS (
-            INSERT INTO person_trackings (user_id, person_id, category, description, image_url)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id, person_id, user_id, category, description, image_url, created_at
-        )
-        SELECT i.id, i.person_id, i.user_id, pb.name, i.category, i.description, i.image_url, i.created_at
-        FROM inserted i
-        JOIN person_bases pb ON i.person_id = pb.id
-        "#,
-    )
-    .bind(user_id)
-    .bind(person_base_id)
-    .bind(&payload.category)
-    .bind(&payload.description)
-    .bind(&payload.image_url)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::error(e.to_string())),
-        )
-    })?;
-
-    tx.commit().await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::error(e.to_string())),
-        )
-    })?;
-
+    let person = PersonService::create_person(&state.pool, user_id, payload).await?;
     Ok((StatusCode::CREATED, Json(ApiResponse::success(person))))
 }
 
@@ -122,87 +58,55 @@ async fn list_people(
     AuthenticatedUser(user_id): AuthenticatedUser,
     Query(query): Query<ListPeopleQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<Vec<Person>>>)> {
-    let sql = r#"
-        SELECT pt.id, pt.person_id, pt.user_id, pb.name, pt.category, pt.description, pt.image_url, pt.created_at
-        FROM person_trackings pt
-        JOIN person_bases pb ON pt.person_id = pb.id
-        WHERE pt.user_id = $1
-    "#;
-
-    let people = if let Some(category) = query.category {
-        sqlx::query_as::<_, Person>(&format!(
-            "{} AND pt.category = $2 ORDER BY pt.created_at DESC",
-            sql
-        ))
-        .bind(user_id)
-        .bind(category)
-        .fetch_all(&state.pool)
-        .await
-    } else {
-        sqlx::query_as::<_, Person>(&format!("{} ORDER BY pt.created_at DESC", sql))
-            .bind(user_id)
-            .fetch_all(&state.pool)
-            .await
-    }
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::error(e.to_string())),
-        )
-    })?;
-
+    let people = PersonService::list_people(&state.pool, user_id, query.category).await?;
     Ok(Json(ApiResponse::success(people)))
 }
+
+async fn get_person(
+    State(state): State<AppState>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
+    axum::extract::Path(person_id): axum::extract::Path<Uuid>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<Person>>)> {
+    let person = PersonService::get_person(&state.pool, user_id, person_id).await?;
+    Ok(Json(ApiResponse::success(person)))
+}
+
+async fn propose_edit(
+    State(state): State<AppState>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
+    axum::extract::Path(person_id): axum::extract::Path<Uuid>,
+    Json(payload): Json<ProposeEditRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<PersonEdit>>)> {
+    let edit = PersonService::propose_edit(&state.pool, user_id, person_id, payload).await?;
+    Ok((StatusCode::CREATED, Json(ApiResponse::success(edit))))
+}
+
+async fn list_edits(
+    State(state): State<AppState>,
+    AuthenticatedUser(_user_id): AuthenticatedUser,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<Vec<PersonEdit>>>)> {
+    let edits = PersonService::list_edits(&state.pool).await?;
+    Ok(Json(ApiResponse::success(edits)))
+}
+
+async fn vote_on_edit(
+    State(state): State<AppState>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
+    axum::extract::Path(edit_id): axum::extract::Path<Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<String>>)> {
+    let is_approve = payload["approve"].as_bool().unwrap_or(true);
+    let message = PersonService::vote_on_edit(&state.pool, user_id, edit_id, is_approve).await?;
+    Ok(Json(ApiResponse::success(message)))
+}
+
 async fn search_people(
     State(state): State<AppState>,
     AuthenticatedUser(user_id): AuthenticatedUser,
     Query(query): Query<SearchQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<serde_json::Value>>)> {
-    let cache_key = format!("search:{}:{}", user_id, query.q);
-
-    // Check cache
-    if let Some(cached_result) = state.cache.get(&cache_key).await {
-        return Ok(Json(ApiResponse::success(cached_result)));
-    }
-
-    // Predictive search: Search in person_bases globally
-    let people = sqlx::query_as::<_, PersonSearchResult>(
-        r#"
-        SELECT
-            pb.id as person_id,
-            pb.name,
-            pt.id as tracking_id,
-            pt.category,
-            pt.description,
-            pt.image_url
-        FROM person_bases pb
-        LEFT JOIN person_trackings pt ON pb.id = pt.person_id AND pt.user_id = $1
-        WHERE pb.name ILIKE $2
-        ORDER BY pb.name ASC
-        LIMIT 10
-        "#,
-    )
-    .bind(user_id)
-    .bind(format!("{}%", query.q))
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::error(e.to_string())),
-        )
-    })?;
-
-    let result_json = serde_json::to_value(&people).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::error(e.to_string())),
-        )
-    })?;
-
-    // Update cache
-    state.cache.insert(cache_key, result_json.clone()).await;
-
+    let result_json =
+        PersonService::search_people(&state.pool, &state.cache, user_id, query.q).await?;
     Ok(Json(ApiResponse::success(result_json)))
 }
 
@@ -229,7 +133,7 @@ async fn get_upload_url(
             PresigningConfig::builder()
                 .expires_in(Duration::from_secs(300))
                 .build()
-                .map_err(|e| {
+                .map_err(|e: aws_sdk_s3::presigning::PresigningConfigError| {
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(ApiResponse::error(e.to_string())),

@@ -9,6 +9,8 @@ interface Person {
   name: string;
   category: string;
   description: string;
+  global_description?: string;
+  age?: number;
   image_url: string;
   created_at: string;
 }
@@ -16,6 +18,8 @@ interface Person {
 const props = defineProps({
   refreshTrigger: Number
 })
+
+const emit = defineEmits(['person-selected'])
 
 const people = ref<Person[]>([])
 const loading = ref(false)
@@ -65,7 +69,11 @@ function getFullImageUrl(url: string) {
 <template>
   <div class="space-y-6">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/10">
-      <h3 class="text-xl font-bold text-white">Database Entries</h3>
+      <div class="flex items-center gap-2">
+        <h3 class="text-xl font-bold text-white">My Collection</h3>
+        <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">{{ people.length
+          }}</span>
+      </div>
       <div class="flex flex-wrap gap-2">
         <button @click="filter = ''" :class="!filter ? 'bg-emerald-500 text-white' : 'bg-white/5 text-gray-400'"
           class="px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold transition-all">
@@ -89,8 +97,8 @@ function getFullImageUrl(url: string) {
     </div>
 
     <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 3xl:grid-cols-4">
-      <div v-for="person in people" :key="person.id"
-        class="group p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/50 hover:bg-white/10 transition-all duration-300 transform hover:-translate-y-1">
+      <div v-for="person in people" :key="person.id" @click="emit('person-selected', person.person_id)"
+        class="group p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/50 hover:bg-white/10 transition-all duration-300 transform hover:-translate-y-1 cursor-pointer">
         <div class="flex items-center space-x-4 mb-4">
           <img v-if="person.image_url" :src="getFullImageUrl(person.image_url)"
             class="w-12 h-12 rounded-full object-cover border-2 border-emerald-500/20" />
@@ -109,17 +117,16 @@ function getFullImageUrl(url: string) {
                 {{ person.category }}
               </span>
             </div>
-            <div class="text-[8px] md:text-[10px] text-gray-500 font-medium">
-              Added on {{ formatDate(person.created_at) }}
+            <div class="flex items-center gap-2 text-[8px] md:text-[10px] text-gray-500 font-medium">
+              <span>{{ person.age }} years</span>
+              <span>•</span>
+              <span>Added on {{ formatDate(person.created_at) }}</span>
             </div>
           </div>
         </div>
         <p class="text-gray-400 text-xs md:text-sm line-clamp-2 mb-3">
-          {{ person.description || 'No description provided.' }}
+          {{ person.description || person.global_description || 'No description provided.' }}
         </p>
-        <div class="text-[8px] md:text-[10px] text-gray-500 font-medium">
-          Added on {{ formatDate(person.created_at) }}
-        </div>
       </div>
     </div>
 

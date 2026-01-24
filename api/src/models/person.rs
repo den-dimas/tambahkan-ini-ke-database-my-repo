@@ -11,15 +11,35 @@ pub enum PersonCategory {
     Kisah,
 }
 
+#[derive(Debug, Serialize, Deserialize, Type)]
+#[sqlx(type_name = "edit_status", rename_all = "lowercase")]
+pub enum EditStatus {
+    Pending,
+    Approved,
+    Rejected,
+}
+
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Person {
-    pub id: Uuid,
-    pub person_id: Uuid,
+    pub id: Uuid,        // tracking_id
+    pub person_id: Uuid, // global person_id
     pub user_id: Uuid,
     pub name: String,
     pub category: PersonCategory,
-    pub description: Option<String>,
+    pub description: Option<String>, // User's private description
+    pub global_description: Option<String>,
+    pub age: Option<i32>,
     pub image_url: Option<String>,
+    pub creator_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct PersonPhoto {
+    pub id: Uuid,
+    pub person_id: Uuid,
+    pub url: String,
+    pub order: i32,
     pub created_at: DateTime<Utc>,
 }
 
@@ -27,7 +47,9 @@ pub struct Person {
 pub struct CreatePersonRequest {
     pub name: String,
     pub category: PersonCategory,
-    pub description: Option<String>,
+    pub description: Option<String>, // Personal description
+    pub global_description: Option<String>,
+    pub age: Option<i32>,
     pub image_url: Option<String>,
 }
 
@@ -37,6 +59,14 @@ pub struct UpdatePersonRequest {
     pub category: Option<PersonCategory>,
     pub description: Option<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProposeEditRequest {
+    pub description: Option<String>,
+    pub age: Option<i32>,
+    pub image_url: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct PersonSearchResult {
     pub person_id: Uuid,
@@ -44,7 +74,21 @@ pub struct PersonSearchResult {
     pub tracking_id: Option<Uuid>,
     pub category: Option<PersonCategory>,
     pub description: Option<String>,
+    pub global_description: Option<String>,
+    pub age: Option<i32>,
     pub image_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct PersonEdit {
+    pub id: Uuid,
+    pub person_id: Uuid,
+    pub proposer_id: Uuid,
+    pub new_description: Option<String>,
+    pub new_age: Option<i32>,
+    pub new_image_url: Option<String>,
+    pub status: EditStatus,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
