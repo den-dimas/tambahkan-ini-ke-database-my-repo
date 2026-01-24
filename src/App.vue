@@ -1,163 +1,97 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import AuthForm from './components/AuthForm.vue'
-import PersonList from './components/PersonList.vue'
-import PersonSearch from './components/PersonSearch.vue'
-import AddPersonForm from './components/AddPersonForm.vue'
-import PersonDetail from './components/PersonDetail.vue'
-import ApprovalCenter from './components/ApprovalCenter.vue'
+import { useAuthStore } from './stores/auth'
 
-interface User {
-  username: string;
-}
-
-const isAuthenticated = ref(false)
-const user = ref<User | null>(null)
-const refreshTrigger = ref(0)
-const currentView = ref('dashboard') // 'dashboard', 'detail', 'approvals'
-const selectedPersonId = ref<string | null>(null)
-
-onMounted(() => {
-  const token = localStorage.getItem('token')
-  const username = localStorage.getItem('username')
-  if (token && username) {
-    isAuthenticated.value = true
-    user.value = { username }
-  }
-})
-
-function handleAuthSuccess(data: any) {
-  localStorage.setItem('token', data.token)
-  localStorage.setItem('username', data.username)
-  isAuthenticated.value = true
-  user.value = { username: data.username }
-}
+const authStore = useAuthStore()
 
 function handleLogout() {
-  localStorage.removeItem('token')
-  localStorage.removeItem('username')
-  isAuthenticated.value = false
-  user.value = null
-  currentView.value = 'dashboard'
-}
-
-function handlePersonAdded() {
-  refreshTrigger.value += 1
-}
-
-function openPersonDetail(personId: string) {
-  selectedPersonId.value = personId
-  currentView.value = 'detail'
-}
-
-function goToDashboard() {
-  currentView.value = 'dashboard'
-  selectedPersonId.value = null
+  authStore.logout()
+  // Refresh page or router push
+  window.location.reload()
 }
 </script>
 
 <template>
-  <div
-    class="min-h-screen bg-[#020617] text-slate-200 font-sans selection:bg-emerald-500/30 selection:text-emerald-200">
-    <!-- Gradient Backgrounds -->
-    <div class="fixed inset-0 overflow-hidden pointer-events-none">
-      <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-emerald-900/10 blur-[120px] rounded-full"></div>
-      <div class="absolute top-[20%] -right-[10%] w-[35%] h-[35%] bg-blue-900/10 blur-[120px] rounded-full"></div>
-      <div class="absolute -bottom-[10%] left-[20%] w-[45%] h-[45%] bg-purple-900/10 blur-[120px] rounded-full"></div>
-    </div>
+  <div class="min-h-screen bg-void-charcoal text-analog-cream font-sans selection:bg-hyper-lime selection:text-black">
 
-    <!-- Navigation -->
-    <nav class="sticky top-0 z-40 w-full bg-[#020617]/50 backdrop-blur-md border-b border-white/5">
-      <div class="w-full px-4 md:px-8 h-16 flex items-center justify-between">
-        <div class="flex items-center gap-2 cursor-pointer" @click="goToDashboard">
-          <div
-            class="h-8 w-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-emerald-500/20 shrink-0">
-            W</div>
-          <span
-            class="text-lg md:text-xl font-bold bg-clip-text text-transparent bg-linear-to-r from-white to-gray-400 truncate">PeopleWiki</span>
-        </div>
-
-        <div v-if="isAuthenticated" class="flex items-center gap-4 md:gap-8">
-          <div class="hidden md:flex items-center gap-6">
-            <button @click="currentView = 'dashboard'"
-              :class="currentView === 'dashboard' ? 'text-white' : 'text-gray-400'"
-              class="text-sm font-bold hover:text-white transition-colors">My Database</button>
-            <button @click="currentView = 'approvals'"
-              :class="currentView === 'approvals' ? 'text-white' : 'text-gray-400'"
-              class="text-sm font-bold hover:text-white transition-colors flex items-center gap-2">
-              Approval Center
-              <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-            </button>
-          </div>
-
-          <div class="flex items-center gap-2 md:gap-4">
-            <span class="text-xs md:text-sm font-medium text-gray-400 hidden sm:inline">
-              <span class="text-white">{{ user?.username }}</span>
-            </span>
-            <button @click="handleLogout"
-              class="text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all font-medium">
-              Logout
-            </button>
-          </div>
-        </div>
-      </div>
-    </nav>
-
-    <main class="relative z-10 w-full px-4 md:px-8 py-8 md:py-12">
-      <!-- Auth State -->
-      <div v-if="!isAuthenticated" class="flex flex-col items-center justify-center min-h-[70vh] px-4">
-        <AuthForm @auth-success="handleAuthSuccess" />
-      </div>
-
-      <!-- Detail View (Full Screen Overlay Style) -->
-      <div v-else-if="currentView === 'detail' && selectedPersonId">
-        <PersonDetail :person-id="selectedPersonId" @back="goToDashboard" />
-      </div>
-
-      <!-- Dashboard View -->
-      <div v-else-if="currentView === 'dashboard'"
-        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 gap-8">
-        <!-- Sidebar / Tools -->
-        <div class="md:col-span-1 space-y-8">
-          <div class="space-y-4">
-            <h2 class="text-lg font-bold text-white flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-500" fill="none" viewBox="0 0 24 24"
-                stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              Wikipedia Search
-            </h2>
-            <PersonSearch @person-selected="openPersonDetail" />
-          </div>
-
-          <AddPersonForm @person-added="handlePersonAdded" />
-        </div>
-
-        <!-- Main Content -->
-        <div class="md:col-span-1 lg:col-span-2 2xl:col-span-3 3xl:col-span-4 space-y-6">
-          <PersonList :refresh-trigger="refreshTrigger" @person-selected="openPersonDetail" />
-        </div>
-      </div>
-
-      <!-- Approvals View -->
-      <div v-else-if="currentView === 'approvals'" class="max-w-4xl mx-auto">
-        <ApprovalCenter />
-      </div>
-
+    <!-- Main Content Area -->
+    <main class="relative z-10 w-full pb-32"> <!-- Padding bottom for floating dock -->
+      <router-view></router-view>
     </main>
 
-    <!-- Footer -->
-    <footer v-if="currentView !== 'detail'"
-      class="relative z-10 border-t border-white/5 py-8 mt-12 bg-[#020617]/50 backdrop-blur-sm">
-      <div class="max-w-7xl mx-auto px-4 text-center text-xs md:text-sm text-gray-600 font-medium">
-        &copy; 2026 PeopleWiki • Community Managed Database
+    <!-- Floating Dock Navigation (Bottom) -->
+    <nav class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+      <div
+        class="flex items-center gap-2 p-2 bg-[rgba(26,26,29,0.8)] backdrop-blur-xl border-2 border-analog-cream rounded-full shadow-[8px_8px_0px_#000]">
+
+        <router-link to="/" class="p-3 rounded-full transition-all hover:bg-analog-cream hover:text-black group"
+          active-class="bg-hyper-lime text-black font-bold">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+        </router-link>
+
+        <router-link to="/explore" class="p-3 rounded-full transition-all hover:bg-analog-cream hover:text-black group"
+          active-class="bg-hyper-lime text-black font-bold">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </router-link>
+
+        <router-link to="/search" class="p-3 rounded-full transition-all hover:bg-analog-cream hover:text-black group"
+          active-class="bg-hyper-lime text-black font-bold">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </router-link>
+
+        <router-link v-if="authStore.isAuthenticated" to="/profile"
+          class="p-3 rounded-full transition-all hover:bg-analog-cream hover:text-black group"
+          active-class="bg-hyper-lime text-black font-bold">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        </router-link>
+
+        <!-- Dynamic Login/Logout Button -->
+        <router-link v-if="!authStore.isAuthenticated" to="/login"
+          class="p-3 rounded-full transition-all hover:bg-analog-cream hover:text-black group"
+          active-class="bg-hyper-lime text-black font-bold">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+          </svg>
+        </router-link>
+        <button v-else @click="handleLogout"
+          class="ml-2 p-2 rounded-full border border-radical-pink text-radical-pink hover:bg-radical-pink hover:text-black transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+        </button>
       </div>
-    </footer>
+    </nav>
 
   </div>
 </template>
 
 <style>
-/* App specific styles */
+/* Global noise texture overlay */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
 </style>

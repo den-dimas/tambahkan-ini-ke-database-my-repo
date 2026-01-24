@@ -67,64 +67,66 @@ function getFullImageUrl(url: string) {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/10">
+  <div class="flex flex-col gap-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-analog-cream">
       <div class="flex items-center gap-2">
-        <h3 class="text-xl font-bold text-white">My Collection</h3>
-        <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">{{ people.length
-          }}</span>
+        <h3 class="text-xl font-bold text-analog-cream">My Collection</h3>
+        <span class="px-2 py-0.5 rounded-full bg-hyper-lime/10 text-hyper-lime text-[10px] font-bold">{{ people.length
+        }}</span>
       </div>
       <div class="flex flex-wrap gap-2">
-        <button @click="filter = ''" :class="!filter ? 'bg-emerald-500 text-white' : 'bg-white/5 text-gray-400'"
-          class="px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold transition-all">
+        <button @click="filter = ''"
+          :class="!filter ? 'bg-hyper-lime text-black border-black' : 'bg-transparent text-analog-cream border-analog-cream/20'"
+          class="px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold transition-all border-2 font-typewriter uppercase hover:bg-analog-cream hover:text-black">
           All
         </button>
         <button v-for="cat in categories" :key="cat" @click="filter = cat"
-          :class="filter === cat ? 'bg-emerald-500 text-white' : 'bg-white/5 text-gray-400'"
-          class="px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold transition-all">
+          :class="filter === cat ? 'bg-hyper-lime text-black border-black' : 'bg-transparent text-analog-cream border-analog-cream/20'"
+          class="px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold transition-all border-2 font-typewriter uppercase hover:bg-analog-cream hover:text-black">
           {{ cat }}
         </button>
       </div>
     </div>
 
     <div v-if="loading" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-emerald-500"></div>
+      <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-hyper-lime"></div>
     </div>
 
     <div v-else-if="people.length === 0"
-      class="text-center py-12 text-gray-500 border-2 border-dashed border-white/5 rounded-2xl px-4">
+      class="text-center py-12 text-digital-lavender border-2 border-dashed border-digital-lavender rounded-card px-4 font-typewriter uppercase">
       No entries found in this category.
     </div>
 
     <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 3xl:grid-cols-4">
       <div v-for="person in people" :key="person.id" @click="emit('person-selected', person.person_id)"
-        class="group p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/50 hover:bg-white/10 transition-all duration-300 transform hover:-translate-y-1 cursor-pointer">
+        class="group p-4 rounded-card card-brutalist hover:bg-[rgba(255,255,255,0.05)] transition-all duration-300 transform hover:-translate-y-1 cursor-pointer">
         <div class="flex items-center space-x-4 mb-4">
           <img v-if="person.image_url" :src="getFullImageUrl(person.image_url)"
-            class="w-12 h-12 rounded-full object-cover border-2 border-emerald-500/20" />
+            class="w-12 h-12 rounded-full object-cover border-2 border-analog-cream" />
           <div v-else
-            class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center border-2 border-emerald-500/10">
-            <span class="text-xl font-bold text-emerald-500/50">{{ person.name[0] }}</span>
+            class="w-12 h-12 rounded-full bg-hyper-lime/10 flex items-center justify-center border-2 border-hyper-lime/10">
+            <span class="text-xl font-bold text-hyper-lime/50">{{ person.name[0] }}</span>
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex justify-between items-start gap-2">
               <h4
-                class="text-base md:text-lg font-semibold text-white group-hover:text-emerald-400 transition-colors line-clamp-1">
+                class="text-base md:text-lg font-semibold text-analog-cream group-hover:text-hyper-lime transition-colors line-clamp-1 uppercase">
                 {{ person.name }}
               </h4>
               <span
-                class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-[8px] md:text-[10px] font-bold uppercase tracking-wider shrink-0">
+                class="px-2 py-0.5 bg-hyper-lime text-black text-[8px] md:text-[10px] font-bold uppercase tracking-wider shrink-0 border border-black font-typewriter">
                 {{ person.category }}
               </span>
             </div>
-            <div class="flex items-center gap-2 text-[8px] md:text-[10px] text-gray-500 font-medium">
+            <div
+              class="flex items-center gap-2 text-[8px] md:text-[10px] text-digital-lavender font-medium font-typewriter">
               <span>{{ person.age }} years</span>
               <span>•</span>
               <span>Added on {{ formatDate(person.created_at) }}</span>
             </div>
           </div>
         </div>
-        <p class="text-gray-400 text-xs md:text-sm line-clamp-2 mb-3">
+        <p class="text-analog-cream/60 text-xs md:text-sm line-clamp-2 mb-3 font-typewriter">
           {{ person.description || person.global_description || 'No description provided.' }}
         </p>
       </div>
