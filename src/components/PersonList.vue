@@ -9,6 +9,7 @@ interface Person {
   name: string;
   category: string;
   description: string;
+  image_url: string;
   created_at: string;
 }
 
@@ -53,6 +54,12 @@ function formatDate(dateString: string) {
     day: 'numeric'
   })
 }
+
+function getFullImageUrl(url: string) {
+  if (!url) return ''
+  if (url.startsWith('http')) return url
+  return url
+}
 </script>
 
 <template>
@@ -84,15 +91,28 @@ function formatDate(dateString: string) {
     <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 3xl:grid-cols-4">
       <div v-for="person in people" :key="person.id"
         class="group p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/50 hover:bg-white/10 transition-all duration-300 transform hover:-translate-y-1">
-        <div class="flex justify-between items-start mb-2 gap-2">
-          <h4
-            class="text-base md:text-lg font-semibold text-white group-hover:text-emerald-400 transition-colors line-clamp-1">
-            {{ person.name }}
-          </h4>
-          <span
-            class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-[8px] md:text-[10px] font-bold uppercase tracking-wider shrink-0">
-            {{ person.category }}
-          </span>
+        <div class="flex items-center space-x-4 mb-4">
+          <img v-if="person.image_url" :src="getFullImageUrl(person.image_url)"
+            class="w-12 h-12 rounded-full object-cover border-2 border-emerald-500/20" />
+          <div v-else
+            class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center border-2 border-emerald-500/10">
+            <span class="text-xl font-bold text-emerald-500/50">{{ person.name[0] }}</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex justify-between items-start gap-2">
+              <h4
+                class="text-base md:text-lg font-semibold text-white group-hover:text-emerald-400 transition-colors line-clamp-1">
+                {{ person.name }}
+              </h4>
+              <span
+                class="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-[8px] md:text-[10px] font-bold uppercase tracking-wider shrink-0">
+                {{ person.category }}
+              </span>
+            </div>
+            <div class="text-[8px] md:text-[10px] text-gray-500 font-medium">
+              Added on {{ formatDate(person.created_at) }}
+            </div>
+          </div>
         </div>
         <p class="text-gray-400 text-xs md:text-sm line-clamp-2 mb-3">
           {{ person.description || 'No description provided.' }}

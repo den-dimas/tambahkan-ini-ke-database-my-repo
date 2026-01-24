@@ -9,6 +9,11 @@ pub struct AppConfig {
     pub server_port: String,
     pub jwt_secret: String,
     pub cors_origins: Vec<String>,
+    pub r2_access_key_id: String,
+    pub r2_secret_access_key: String,
+    pub r2_endpoint: String,
+    pub r2_bucket_name: String,
+    pub r2_public_domain: Option<String>,
 }
 
 pub static APP_CONFIG: OnceLock<AppConfig> = OnceLock::new();
@@ -35,6 +40,12 @@ impl AppConfig {
             jwt_secret: env::var("JWT_SECRET")
                 .unwrap_or_else(|_| "change_me_in_production".to_string()),
             cors_origins,
+            r2_access_key_id: env::var("R2_ACCESS_KEY_ID").expect("R2_ACCESS_KEY_ID must be set"),
+            r2_secret_access_key: env::var("R2_SECRET_ACCESS_KEY")
+                .expect("R2_SECRET_ACCESS_KEY must be set"),
+            r2_endpoint: env::var("R2_ENDPOINT").expect("R2_ENDPOINT must be set"),
+            r2_bucket_name: env::var("R2_BUCKET_NAME").expect("R2_BUCKET_NAME must be set"),
+            r2_public_domain: env::var("R2_PUBLIC_DOMAIN").ok(),
         }
     }
 }

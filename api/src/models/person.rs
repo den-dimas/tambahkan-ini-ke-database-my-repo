@@ -19,6 +19,7 @@ pub struct Person {
     pub name: String,
     pub category: PersonCategory,
     pub description: Option<String>,
+    pub image_url: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -27,6 +28,7 @@ pub struct CreatePersonRequest {
     pub name: String,
     pub category: PersonCategory,
     pub description: Option<String>,
+    pub image_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,4 +44,18 @@ pub struct PersonSearchResult {
     pub tracking_id: Option<Uuid>,
     pub category: Option<PersonCategory>,
     pub description: Option<String>,
+    pub image_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetUploadUrlRequest {
+    pub filename: String,
+    pub content_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UploadUrlResponse {
+    pub upload_url: String,
+    pub public_url: String,
+    pub key: String,
 }

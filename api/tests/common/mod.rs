@@ -30,10 +30,18 @@ impl TestContext {
             .time_to_live(std::time::Duration::from_secs(60))
             .build();
 
+        // Initialize a dummy S3 client for tests
+        let s3_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .region(aws_sdk_s3::config::Region::new("auto"))
+            .load()
+            .await;
+        let s3_client = aws_sdk_s3::Client::new(&s3_config);
+
         let state = AppState {
             pool,
             config,
             cache,
+            s3_client,
         };
 
         Self { state }

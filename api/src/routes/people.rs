@@ -10,16 +10,23 @@ use serde::Deserialize;
 use crate::{
     AppState,
     models::{
-        person::{CreatePersonRequest, Person, PersonCategory, PersonSearchResult},
+        person::{
+            CreatePersonRequest, GetUploadUrlRequest, Person, PersonCategory, PersonSearchResult,
+            UploadUrlResponse,
+        },
         response::ApiResponse,
     },
     routes::auth_middleware::AuthenticatedUser,
 };
+use aws_sdk_s3::presigning::PresigningConfig;
+use std::time::Duration;
+use uuid::Uuid;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", post(create_person).get(list_people))
         .route("/search", get(search_people))
+        .route("/upload-url", post(get_upload_url))
 }
 
 #[derive(Deserialize)]
@@ -77,11 +84,11 @@ async fn create_person(
     let person = sqlx::query_as::<_, Person>(
         r#"
         WITH inserted AS (
-            INSERT INTO person_trackings (user_id, person_id, category, description)
-            VALUES ($1, $2, $3, $4)
-            RETURNING id, person_id, user_id, category, description, created_at
+            INSERT INTO person_trackings (user_id, person_id, category, description, image_url)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, person_id, user_id, category, description, image_url, created_at
         )
-        SELECT i.id, i.person_id, i.user_id, pb.name, i.category, i.description, i.created_at
+        SELECT i.id, i.person_id, i.user_id, pb.name, i.category, i.description, i.image_url, i.created_at
         FROM inserted i
         JOIN person_bases pb ON i.person_id = pb.id
         "#,
@@ -90,6 +97,7 @@ async fn create_person(
     .bind(person_base_id)
     .bind(&payload.category)
     .bind(&payload.description)
+    .bind(&payload.image_url)
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
@@ -115,7 +123,7 @@ async fn list_people(
     Query(query): Query<ListPeopleQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<Vec<Person>>>)> {
     let sql = r#"
-        SELECT pt.id, pt.person_id, pt.user_id, pb.name, pt.category, pt.description, pt.created_at
+        SELECT pt.id, pt.person_id, pt.user_id, pb.name, pt.category, pt.description, pt.image_url, pt.created_at
         FROM person_trackings pt
         JOIN person_bases pb ON pt.person_id = pb.id
         WHERE pt.user_id = $1
@@ -165,7 +173,8 @@ async fn search_people(
             pb.name,
             pt.id as tracking_id,
             pt.category,
-            pt.description
+            pt.description,
+            pt.image_url
         FROM person_bases pb
         LEFT JOIN person_trackings pt ON pb.id = pt.person_id AND pt.user_id = $1
         WHERE pb.name ILIKE $2
@@ -195,4 +204,63 @@ async fn search_people(
     state.cache.insert(cache_key, result_json.clone()).await;
 
     Ok(Json(ApiResponse::success(result_json)))
+}
+
+async fn get_upload_url(
+    State(state): State<AppState>,
+    AuthenticatedUser(user_id): AuthenticatedUser,
+    Json(payload): Json<GetUploadUrlRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiResponse<UploadUrlResponse>>)> {
+    let file_extension = payload
+        .filename
+        .split('.')
+        .last()
+        .unwrap_or("jpg")
+        .to_lowercase();
+    let key = format!("users/{}/{}.{}", user_id, Uuid::new_v4(), file_extension);
+
+    let presigned_request = state
+        .s3_client
+        .put_object()
+        .bucket(&state.config.r2_bucket_name)
+        .key(&key)
+        .content_type(&payload.content_type)
+        .presigned(
+            PresigningConfig::builder()
+                .expires_in(Duration::from_secs(300))
+                .build()
+                .map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ApiResponse::error(e.to_string())),
+                    )
+                })?,
+        )
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::error(e.to_string())),
+            )
+        })?;
+
+    let upload_url = presigned_request.uri().to_string();
+    let public_url = if let Some(domain) = &state.config.r2_public_domain {
+        let domain = domain.trim_end_matches('/');
+        format!("{}/{}", domain, key)
+    } else {
+        // If no domain is configured, we return the key
+        // But we should warn the user in the logs
+        tracing::warn!(
+            "R2_PUBLIC_DOMAIN is not set. Image URLs will be relative: {}",
+            key
+        );
+        key.clone()
+    };
+
+    Ok(Json(ApiResponse::success(UploadUrlResponse {
+        upload_url,
+        public_url,
+        key,
+    })))
 }

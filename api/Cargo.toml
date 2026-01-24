@@ -33,6 +33,9 @@ chrono = { version = "0.4.39", features = ["serde"] }
 uuid = { version = "1.12.1", features = ["serde", "v4"] }
 tower_governor = "0.6.0"
 moka = { version = "0.12", features = ["future"] }
+aws-config = "1.5.15"
+aws-sdk-s3 = "1.71.0"
+mime_guess = "2.0.5"
 
 [dev-dependencies]
 tower = { version = "0.5.2", features = ["util"] }

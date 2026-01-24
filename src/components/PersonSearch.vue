@@ -9,6 +9,7 @@ interface PersonSearchResult {
   tracking_id: string | null;
   category: string | null;
   description: string | null;
+  image_url: string | null;
 }
 
 const emit = defineEmits(['select-person'])
@@ -47,6 +48,12 @@ watch(query, (newQuery) => {
   clearTimeout(timeout)
   timeout = setTimeout(handleSearch, 300)
 })
+
+function getFullImageUrl(url: string | null) {
+  if (!url) return ''
+  if (url.startsWith('http')) return url
+  return url
+}
 </script>
 
 <template>
@@ -76,18 +83,25 @@ watch(query, (newQuery) => {
       leave-from-class="transform scale-100 opacity-100" leave-to-class="transform scale-95 opacity-0">
       <div v-if="results.length > 0 && query.length >= 2"
         class="absolute z-50 w-full mt-2 bg-[#0f172a]/90 backdrop-blur-2xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-        <div v-for="person in results" :key="person.person_id"
-          @click="emit('select-person', person)"
+        <div v-for="person in results" :key="person.person_id" @click="emit('select-person', person)"
           class="px-4 py-3 hover:bg-white/5 cursor-pointer flex justify-between items-center transition-colors border-b border-white/5 last:border-0">
-          <div>
-            <div class="text-white font-medium">{{ person.name }}</div>
-            <div class="text-[10px] text-gray-500">
-              {{ person.tracking_id ? person.category : 'Not in your list' }}
+          <div class="flex items-center space-x-3">
+            <img v-if="person.image_url" :src="getFullImageUrl(person.image_url)"
+              class="w-8 h-8 rounded-full object-cover border border-white/10" />
+            <div v-else class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+              <span class="text-[10px] text-gray-500">{{ person.name[0] }}</span>
+            </div>
+            <div>
+              <div class="text-white font-medium">{{ person.name }}</div>
+              <div class="text-[10px] text-gray-500">
+                {{ person.tracking_id ? person.category : 'Not in your list' }}
+              </div>
             </div>
           </div>
           <svg xmlns="http://www.w3.org/2000/svg" :class="person.tracking_id ? 'text-emerald-500' : 'text-gray-600'"
             class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="person.tracking_id ? 'M5 13l4 4L19 7' : 'M12 4v16m8-8H4'" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              :d="person.tracking_id ? 'M5 13l4 4L19 7' : 'M12 4v16m8-8H4'" />
           </svg>
         </div>
       </div>

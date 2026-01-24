@@ -28,6 +28,7 @@ pub struct AppState {
     pub pool: PgPool,
     pub config: &'static AppConfig,
     pub cache: Cache<String, serde_json::Value>,
+    pub s3_client: aws_sdk_s3::Client,
 }
 
 impl axum::extract::FromRef<AppState> for PgPool {
@@ -67,10 +68,26 @@ pub async fn serve() -> anyhow::Result<()> {
         .time_to_live(std::time::Duration::from_secs(300)) // 5 minutes
         .build();
 
+    let s3_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+        .credentials_provider(aws_sdk_s3::config::Credentials::new(
+            &config.r2_access_key_id,
+            &config.r2_secret_access_key,
+            None,
+            None,
+            "Static",
+        ))
+        .endpoint_url(&config.r2_endpoint)
+        .region(aws_sdk_s3::config::Region::new("auto"))
+        .load()
+        .await;
+
+    let s3_client = aws_sdk_s3::Client::new(&s3_config);
+
     let state = AppState {
         pool,
         config,
         cache,
+        s3_client,
     };
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port.parse::<u16>().unwrap()));
